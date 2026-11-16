@@ -1,0 +1,1067 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>屏幕扩展控制台</title>
+<style>
+:root{color-scheme:dark;font:15px "Inter","Microsoft YaHei UI",sans-serif;background:#171819;color:#eee}
+body{margin:0 auto;max-width:1200px;padding:32px clamp(16px,3vw,36px)}
+h1{font-size:28px;margin:0 0 22px}
+nav{display:flex;gap:7px;border-bottom:1px solid #414346;margin-bottom:20px}
+button,select{font:inherit;color:inherit;background:#303236;border:1px solid #45474b;border-radius:6px;padding:8px 16px}
+button{cursor:pointer}
+button:disabled{opacity:.45;cursor:default}
+nav button{border:0;background:transparent;border-radius:0}
+nav button[aria-selected=true]{border-bottom:2px solid #69bfff}
+section{background:#222427;border:1px solid #393b3e;border-radius:8px;padding:18px}
+.row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px;margin:0 0 14px}
+h2{font-size:20px;margin:0}
+dl{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px;margin:16px 0}
+dl div{background:#191b1d;border-radius:6px;padding:10px 12px}
+dt{color:#bbbdc2;font-size:13px}
+dd{margin:5px 0 0}
+.settings{display:flex;flex-wrap:wrap;align-items:end;gap:12px;margin:0 0 20px}
+[hidden]{display:none!important}
+.settings label{display:grid;gap:5px}
+#stream-note:empty{display:none}
+label{display:flex;align-items:center;gap:8px}
+input[role=switch]{appearance:none;width:40px;height:22px;border-radius:20px;background:#555;border:1px solid #777;margin:0;cursor:pointer;position:relative}
+input[role=switch]::after{content:"";position:absolute;left:3px;top:3px;width:14px;height:14px;background:white;border-radius:50%}
+input[role=switch]:checked{background:#0076ce}
+input[role=switch]:checked::after{left:21px}
+input:disabled{opacity:.45;cursor:default}
+.preview{height:min(49vh,420px);min-height:180px;background:#111214;border-radius:6px;display:grid;place-items:center;color:#b5b7bc}
+.preview img{width:100%;height:100%;object-fit:contain;min-height:0}
+#diagram{position:relative;width:100%;height:350px;background:#151617;border:1px solid #47494e;border-radius:6px;touch-action:none;overflow:hidden}
+#layout-status{margin:8px 0 0}
+.layout-tile{position:absolute;box-sizing:border-box;display:grid;place-content:center;gap:3px;text-align:center;overflow:hidden;padding:3px;background:#32353a;border:1px solid #575b62;border-radius:6px}
+button.layout-tile{background:#164d75;border-color:#3a83b9;cursor:grab}
+button.layout-tile[aria-pressed=true]{background:#086cb0;border-color:#a1d7ff}
+button.layout-tile:focus-visible{outline:2px solid #fff;outline-offset:-3px}
+.layout-tile span{white-space:nowrap;font-size:12px}
+.layout-tile strong{font-size:clamp(11px,2vw,15px);overflow-wrap:anywhere;font-weight:600}
+.layout-tile.compact span{display:none}
+.layout-tile.dragging{z-index:1;cursor:grabbing;opacity:.83}
+.layout-tile.snap-target{box-shadow:inset 0 0 0 2px #a1d7ff}
+.actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:13px}
+p{color:#bbbdc2;margin-bottom:12px}
+#notice{min-height:1.3em}
+#devices{background:none;border:0;padding:8px 0 0}
+.device-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px}
+.device-heading .actions{margin:0}
+.device-card{--card-inset:56px;background:#21242a;border:1px solid #363e49;border-radius:12px;padding:20px;margin-top:14px}
+.device-card h2{overflow-wrap:anywhere}
+.device-card .row{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:14px;margin-bottom:12px}
+.device-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:9px;background:#171a20;color:#79c3fb}
+.device-icon::before{content:'';display:block;width:11px;height:17px;border:1.5px solid currentColor;border-radius:2px;background:radial-gradient(circle at 50% 82%,currentColor 1px,transparent 1.5px)}
+[data-device-status]{display:flex;align-items:center;gap:8px;color:#aebacb;font-size:14px}
+[data-device-status]::before{content:'';width:8px;height:8px;border-radius:50%;background:currentColor}
+.device-card[data-connected] [data-device-status]{color:#78d6a6}
+.device-fields,.device-controls,.device-card>.touch-setting,.device-card>.pair-tools{margin-left:var(--card-inset)}
+.device-fields,.device-modes,.device-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px 20px}
+.device-fields{color:#aebacb;font-size:14px;margin-bottom:14px}
+.device-fields strong{color:#eee;font-weight:500;margin-left:6px}
+.device-mode-note{margin:0 0 12px var(--card-inset);font-size:13px;color:#e7bf81}
+.device-modes label{min-width:0;color:#aebacb}
+.device-modes select{max-width:min(230px,100%);min-width:88px;background:#171a20;color:#f4f6fa;border-color:#363e49}
+.device-modes,.device-actions{row-gap:10px}
+.device-actions{margin-top:14px}
+.device-card .device-actions input{width:16px;height:16px;margin:0;accent-color:#79c3fb}
+.device-card .device-actions button,.device-heading button{background:#21242a;border-color:#363e49}
+.device-controls p[role=status]{margin:8px 0 0;font-size:13px}
+.device-controls .preview{margin-top:14px}
+.device-card .touch-setting{display:flex;align-items:center;flex-wrap:wrap;gap:8px 14px;margin-top:12px;margin-bottom:0}
+.device-card .touch-setting small{padding:0}
+.device-card .settings{margin-bottom:8px}
+.device-card .preview{height:min(36vh,325px)}
+.device-card>.pair-tools:not(:has(>:not([hidden]))){display:none}
+.pair-tools{display:grid;gap:8px;margin-top:12px}
+.pair-tools .actions{margin:0}
+.pair-tools p{margin:0}
+.pair-tools ul{list-style:none;margin:0;padding:0;display:grid;gap:8px}
+.pair-tools li{display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.paired-identity{overflow-wrap:anywhere}
+.touch-setting{display:grid;justify-items:start;gap:5px;margin:0 0 12px}
+.touch-setting small{color:#bbbdc2;padding-inline-start:48px}
+@media(max-width:580px){
+ .device-card{--card-inset:0px;padding:14px}
+ .device-modes{display:grid;grid-template-columns:minmax(0,1fr);gap:9px}
+ .device-modes label{justify-content:space-between}
+ .device-modes select{max-width:70%}
+}
+</style>
+</head>
+<body>
+<h1>屏幕扩展控制台</h1>
+<nav aria-label="设置分类">
+<button aria-selected="false" data-tab="layout">屏幕排列</button>
+<button aria-selected="true" data-tab="devices">设备</button>
+</nav>
+<section id="layout" hidden>
+<div id="diagram" role="group" aria-label="屏幕排列"></div>
+<p id="layout-status" role="status" hidden>暂时无法读取 Windows 屏幕排列</p>
+<div class="actions"><button id="apply" type="button" disabled>应用排列</button></div>
+</section>
+<section id="devices">
+<div class="device-heading">
+<h2>设备</h2>
+<div class="actions">
+<button id="scan-devices" type="button">扫描网络上的设备</button>
+<button id="paired-toggle" type="button" aria-expanded="false" aria-controls="paired-panel">已配对设备</button>
+</div>
+</div>
+<div class="pair-tools" id="discovered" hidden>
+<p id="scan-status" role="status"></p>
+<ul id="discovered-list" aria-label="网络上的设备"></ul>
+</div>
+<form class="settings" id="pair-access" method="post" hidden>
+<label>Sunshine 用户名<input name="username" autocomplete="username" required></label>
+<label>Sunshine 密码<input name="password" type="password" autocomplete="current-password" required></label>
+<button type="submit">解锁设备管理</button>
+</form>
+<p id="pair-access-status" role="status" hidden></p>
+<div class="pair-tools" id="paired-panel" aria-label="已配对设备" hidden></div>
+<article class="device-card" id="primary-device" hidden>
+<div class="row"><span class="device-icon" aria-hidden="true"></span><h2>扩展屏设备</h2><span data-device-status>等待连接</span></div>
+<div class="device-fields" hidden><span>显示模式<strong data-display-mode></strong></span><span>配对状态<strong>已配对</strong></span></div>
+<p class="device-mode-note" data-display-mode-note role="status" hidden></p>
+<div class="touch-setting">
+<label><input type="checkbox" role="switch" id="trackpad" aria-describedby="touch-mode" disabled>触控板模式</label>
+<small id="touch-mode" role="status">等待设备连接</small>
+</div>
+</article>
+<article class="device-card" id="secondary-device" hidden>
+<div class="row"><span class="device-icon" aria-hidden="true"></span><h2>扩展屏</h2><span data-device-status>等待连接</span></div>
+<div class="device-fields" hidden><span>显示模式<strong data-display-mode></strong></span><span>配对状态<strong>已配对</strong></span></div>
+<p class="device-mode-note" data-display-mode-note role="status" hidden></p>
+</article>
+<template id="device-controls-template">
+<div class="device-controls">
+<div class="device-modes">
+<label data-desktop-setting>桌面分辨率 <select data-desktop-resolution aria-label="桌面分辨率" disabled><option>—</option></select></label>
+<label data-desktop-setting title="Windows 虚拟扩展屏每秒刷新次数">桌面刷新率 <select data-desktop-rate aria-label="桌面刷新率" disabled><option>—</option></select></label>
+<label title="电脑向设备传输画面的目标帧率">串流帧率 <select data-fps aria-label="串流帧率" disabled><option value="">—</option><option value="60">60 FPS</option><option value="30">30 FPS</option></select></label>
+</div>
+<p data-resolution-note role="status" hidden></p>
+<p data-fps-note role="status" hidden></p>
+<div class="device-actions">
+<label><input type="checkbox" data-audio disabled>同时播放声音</label>
+<label><input type="checkbox" data-camera disabled>开启摄像头</label>
+<button type="button" data-lens hidden disabled>切换前后摄像头</button>
+<button type="button" data-disconnect hidden>断开连接</button>
+<button type="button" data-open-pairing hidden>解除配对</button>
+</div>
+<small data-disconnect-hint hidden></small>
+<p data-device-feedback role="status" hidden></p>
+<div class="preview" hidden><span>等待设备回传画面</span><img alt="设备摄像头实时画面" hidden></div>
+</div>
+</template>
+<template id="pair-tools-template">
+<div class="pair-tools">
+<form class="settings" hidden>
+<label data-pending-choice hidden>设备<select name="pairDevice" required></select></label>
+<label>设备显示的配对码<input name="pin" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" required></label>
+<button type="submit">确认配对</button>
+</form>
+<p data-pair-message role="status" hidden></p>
+<div class="pair-tools" data-pair-list-group hidden>
+<p data-list-message role="status" hidden></p>
+<ul aria-label="配对记录"></ul>
+</div>
+</div>
+</template>
+</section>
+<p id="notice" role="status"></p>
+<script>
+const byId = id => document.getElementById(id);
+const readableDeviceName = name => /^BAH3-W59$/i.test(name) ? 'MatePad' : name;
+const key = new URLSearchParams(location.search).get('key');
+const endpoint = (route, data = {}) => '/' + route + '?' + new URLSearchParams({key, ...data});
+const trackpad = byId('trackpad'), touchMode = byId('touch-mode');
+const diagram = byId('diagram');
+let state, drag, transform;
+const positions = new Map(), tiles = new Map();
+let selectedScreen, layoutBusy = false;
+let pendingTouch;
+const notice = message => byId('notice').textContent = message;
+const pairAccess = byId('pair-access'), accessStatus = byId('pair-access-status');
+const pairedPanel = byId('paired-panel'), pairedToggle = byId('paired-toggle');
+const primaryCard = byId('primary-device'), secondaryCard = byId('secondary-device');
+const historyView = location.hash === '#paired-devices';
+let openPairedOnLoad = historyView;
+const cards = [primaryCard,secondaryCard], linkRequests = new Map();
+let connectedIds = '';
+const deviceControls = cards.map((card,index)=>setupDeviceControls(card,index+1));
+const pairControls = cards.map((card,index)=>setupPairing(card,String(index+1)));
+
+function showStatus(element, message) {
+    element.textContent = message;
+    element.hidden = !message;
+}
+
+function setupPairing(card, screen) {
+    const template = byId('pair-tools-template');
+    const tools = template.content.firstElementChild.cloneNode(true);
+    card.append(tools);
+    const form = tools.querySelector('form'), choose = tools.querySelector('[data-pending-choice]');
+    const device = form.elements.pairDevice, pin = form.elements.pin;
+    const submit = form.querySelector('button');
+    const group = tools.querySelector('[data-pair-list-group]'), list = group.querySelector('ul');
+    const pairMessage = tools.querySelector('[data-pair-message]'), listMessage = group.querySelector('[data-list-message]');
+    pairedPanel.append(group);
+    const address = (route, params = {}) => endpoint(route,{screen,...params});
+    let busy = false, listing = false, nextPoll = 0, requestSignature = '';
+
+    async function poll() {
+        if (busy) return;
+        if ((screen === '2' && !screenFor(2)) ||
+            (!historyView && !linkRequests.has(Number(screen)) && !sessionFor(Number(screen)).available)) {
+            form.hidden = true;
+            pin.value = '';
+            nextPoll = 0;
+            return;
+        }
+        if (byId('devices').hidden || Date.now() < nextPoll) return;
+        busy = true;
+        nextPoll = Date.now() + 2500;
+        try {
+            const response = await fetch(address('pair'));
+            if (response.status === 401 && screen === '1') pairAccess.hidden = false;
+            if (!response.ok) {
+                form.hidden = true;
+                return;
+            }
+            const result = await response.json();
+            const requests = Array.isArray(result.pairings) ? result.pairings : [];
+            const signature = JSON.stringify(requests);
+            if (signature !== requestSignature) {
+                const selected = device.value;
+                const options = requests.map(request => {
+                    const option = new Option(request.name || '待配对设备',request.id);
+                    option.dataset.name = typeof request.name === 'string' ? request.name : '';
+                    return option;
+                });
+                device.replaceChildren(...options);
+                if (options.some(option => option.value === selected)) device.value = selected;
+                if (device.value !== selected) pin.value = '';
+                requestSignature = signature;
+            }
+            choose.hidden = requests.length < 2;
+            form.hidden = !requests.length;
+        } catch (_) { form.hidden = true; }
+        finally { busy = false; }
+    }
+
+    device.onchange = () => { pin.value = ''; };
+    form.onsubmit = async event => {
+        event.preventDefault();
+        if (busy || !device.value) return;
+        busy = submit.disabled = device.disabled = true;
+        const name = (device.selectedOptions[0]?.dataset.name || '').trim().replace(/[\x00-\x1f\x7f]/g,'').slice(0,40);
+        showStatus(pairMessage,'正在配对…');
+        try {
+            const response = await fetch(address('pair'), {method:'POST',body:new URLSearchParams({
+                id:device.value,pin:pin.value,name
+            })});
+            if (!response.ok || !(await response.json()).status) throw new Error();
+            pin.value = '';
+            form.hidden = true;
+            showStatus(pairMessage,'配对成功，可在设备上连接。');
+            if (!pairedPanel.hidden) loadPairs();
+        } catch (_) { showStatus(pairMessage,'配对失败，请核对设备上的配对码。'); }
+        finally {
+            busy = submit.disabled = device.disabled = false;
+            nextPoll = 0;
+        }
+    };
+
+    function pairRow(device, name, duplicate) {
+        const row = document.createElement('li');
+        const label = document.createElement('span');
+        label.className = 'paired-identity';
+        label.textContent = name + (duplicate ? ' · ' + device.uuid.slice(0,8) : '') +
+            (device.enabled === false ? ' · 已停用' : '');
+        const forget = document.createElement('button');
+        forget.type = 'button';
+        forget.textContent = '解除配对';
+        forget.setAttribute('aria-label','解除配对 ' + label.textContent);
+        forget.onclick = async () => {
+            if (!confirm('解除「' + label.textContent + '」的配对？')) return;
+            forget.disabled = true;
+            try {
+                const result = await fetch(address('paired-devices/unpair',{id:device.uuid}),{method:'POST'});
+                if (!result.ok || !(await result.json()).status) throw new Error();
+                row.remove();
+                showStatus(listMessage,list.children.length ? '' : '暂无已配对设备');
+                pairedToggle.focus();
+            } catch (_) {
+                showStatus(listMessage,'解除配对失败，请重试。');
+                forget.disabled = false;
+            }
+        };
+        row.append(label,forget);
+        return row;
+    }
+
+    async function loadPairs() {
+        if (pairedPanel.hidden || listing) return;
+        listing = true;
+        group.hidden = false;
+        showStatus(listMessage,'正在读取配对记录…');
+        try {
+            const response = await fetch(address('paired-devices'));
+            if (screen === '2' && response.status === 404) {
+                group.hidden = true;
+                return;
+            }
+            if (response.status === 401 && screen === '1') {
+                pairAccess.hidden = false;
+                showStatus(listMessage,'请先验证配对授权。');
+                return;
+            }
+            if (!response.ok) throw new Error();
+            const result = await response.json();
+            const namesResponse = await fetch(endpoint('paired-devices/names'));
+            const names = namesResponse.ok ? await namesResponse.json() : {};
+            const devices = Array.isArray(result.named_certs) ? result.named_certs : [];
+            const entries = devices.map(device => ({
+                device,name:readableDeviceName(names[device.uuid.toLowerCase()] || device.name) || '未命名设备'
+            }));
+            list.replaceChildren(...entries.map(({device,name}) =>
+                pairRow(device,name,entries.some(other => other.device !== device && other.name === name))));
+            showStatus(listMessage,entries.length ? '' : '暂无已配对设备');
+        } catch (_) { showStatus(listMessage,'暂时无法读取已配对设备。'); }
+        finally { listing = false; }
+    }
+    return {poll,loadPairs,hideList:() => { group.hidden = true; },
+        retry:() => { nextPoll = 0; }, hasRequest:() => !form.hidden};
+}
+
+function showPairHistory(visible,slot) {
+    pairedPanel.hidden = !visible;
+    pairedToggle.setAttribute('aria-expanded',String(visible));
+    if (visible) pairControls.forEach((control,index) => {
+        if (!slot || slot === index + 1) control.loadPairs();
+        else control.hideList();
+    });
+}
+pairedToggle.onclick = () => showPairHistory(pairedPanel.hidden);
+
+pairAccess.onsubmit = async event => {
+    event.preventDefault();
+    const button = pairAccess.querySelector('button');
+    button.disabled = true;
+    showStatus(accessStatus,'正在验证配对授权…');
+    try {
+        const response = await fetch(endpoint('pair-access'), {
+            method:'POST',body:new URLSearchParams(new FormData(pairAccess))
+        });
+        if (!response.ok) {
+            showStatus(accessStatus,response.status === 401 ? '账号或密码不正确。' : '暂时无法验证配对授权。');
+            return;
+        }
+        pairAccess.hidden = true;
+        showStatus(accessStatus,'');
+        pairControls[0].retry();
+        pairControls[0].loadPairs();
+    } catch (_) { showStatus(accessStatus,'暂时无法验证配对授权。'); }
+    finally {
+        pairAccess.elements.password.value = '';
+        button.disabled = false;
+    }
+};
+
+const scanButton = byId('scan-devices'), scanPanel = byId('discovered');
+const scanStatus = byId('scan-status'), scanList = byId('discovered-list');
+const discovered = new Map();
+let scanning = false, connecting = false;
+
+function sessionFor(slot,snapshot = state) {
+    return (slot === 1 ? snapshot : snapshot?.secondary) || {};
+}
+
+function screenFor(slot,snapshot = state) {
+    const screens = snapshot?.layout?.screens || [];
+    return screens.find(screen => screen.slot === slot) ||
+        (slot === 1 ? screens.find(screen => screen.id === snapshot?.display) : null);
+}
+
+function drawDiscovered() {
+    const connected = new Set([sessionFor(1).deviceId,sessionFor(2).deviceId]);
+    const requestedIds = new Set([...linkRequests.values()].filter(item=>item.expires>Date.now()).map(item=>item.id));
+    scanList.replaceChildren(...[...discovered.values()].filter(device=>!connected.has(device.id)).map(device => {
+        const row = document.createElement('li'), name = document.createElement('span');
+        name.textContent = device.name;
+        const button = document.createElement('button');
+        button.type = 'button';
+        const pending = requestedIds.has(device.id);
+        button.textContent = pending ? '等待设备确认' : '连接';
+        button.disabled = connecting || pending;
+        button.setAttribute('aria-label','连接 ' + device.name);
+        button.onclick = () => connectDevice(device);
+        row.append(name,button);
+        return row;
+    }));
+}
+
+async function scanDevices() {
+    if (scanning || connecting) return;
+    scanning = scanButton.disabled = true;
+    scanPanel.hidden = false;
+    showStatus(scanStatus,'正在扫描网络上的设备…');
+    try {
+        const response = await fetch(endpoint('devices/scan'),{method:'POST'});
+        if (response.status === 404) throw Error('请先安装新版 Windows 端，再扫描网络上的设备。');
+        const result = await response.json();
+        if (!response.ok) throw Error(result.error || '暂时无法扫描网络上的设备。');
+        discovered.clear();
+        for (const device of result.devices || []) {
+            discovered.set(device.id,{...device,name:readableDeviceName(device.name)});
+        }
+        drawDiscovered();
+        showStatus(scanStatus,scanList.children.length ? '' : '未发现可连接设备。请打开手机或平板上的「屏幕扩展」。');
+    } catch (error) {
+        discovered.clear();
+        drawDiscovered();
+        showStatus(scanStatus,error.message);
+    } finally { scanning = scanButton.disabled = false; }
+}
+scanButton.onclick = scanDevices;
+
+async function connectDevice(device) {
+    if (connecting || scanning) return;
+    connecting = scanButton.disabled = true;
+    drawDiscovered();
+    showStatus(scanStatus,'正在准备连接…');
+    try {
+        const response = await fetch(endpoint('devices/connect',{id:device.id}),{method:'POST'});
+        const result = await response.json();
+        if (!response.ok || (result.slot !== 1 && result.slot !== 2))
+            throw Error(result.error || '无法连接此设备。');
+        linkRequests.set(result.slot,{...device,expires:Date.now()+120000});
+        pairControls[result.slot-1].retry();
+        showStatus(scanStatus,'请在「' + device.name + '」上确认连接。');
+        updateCards();
+    } catch (error) { showStatus(scanStatus,error.message); }
+    finally {
+        connecting = scanButton.disabled = false;
+        drawDiscovered();
+    }
+}
+
+function updateCards() {
+    for (const [index,card] of cards.entries()) {
+        const slot = index + 1, session = sessionFor(slot), request = linkRequests.get(slot);
+        const screen = screenFor(slot);
+        if (request && (session.available || request.expires <= Date.now())) {
+            if (session.available && session.deviceId === request.id) showStatus(scanStatus,'');
+            linkRequests.delete(slot);
+        }
+        const activeRequest = linkRequests.get(slot);
+        card.hidden = !(session.available || session.legacy || activeRequest ||
+            pairControls[index].hasRequest());
+        card.querySelector('h2').textContent = readableDeviceName(session.device) || activeRequest?.name || '扩展屏';
+        card.toggleAttribute('data-connected', Boolean(session.available));
+        card.querySelector('.device-fields').hidden = !session.available;
+        const mode = session.displayMode || (screen ? 'extended' : 'unknown');
+        const modeNames = {extended:'扩展',duplicate:'复制',primary:'主屏串流',other:'串流来源异常',unknown:'等待确认'};
+        card.querySelector('[data-display-mode]').textContent = modeNames[mode] || modeNames.unknown;
+        showStatus(card.querySelector('[data-display-mode-note]'), session.available && mode !== 'extended'
+            ? mode === 'duplicate' || mode === 'primary'
+                ? '需要独立副屏时，请断开后从本页重新连接。'
+                : '暂时无法确认独立副屏。可从本页断开后重新连接。'
+            : '');
+        card.querySelector('[data-device-status]').textContent = session.available ? '已连接' :
+            session.legacy ? '旧版设备' : activeRequest ? '等待设备确认' : '未连接';
+        const desktop = mode === 'extended' ? screen : null;
+        const rate = desktop?.refreshRate || (desktop && slot === 1 ? state?.refreshRate : 0);
+        deviceControls[index].update(session,desktop,rate);
+    }
+    const currentIds = [sessionFor(1).deviceId,sessionFor(2).deviceId];
+    const signature = JSON.stringify(currentIds);
+    if (signature !== connectedIds) {
+        const needsScan = connectedIds && JSON.parse(connectedIds).some(id => id && !currentIds.includes(id) && !discovered.has(id));
+        connectedIds = signature;
+        drawDiscovered();
+        if (needsScan && !byId('devices').hidden) {
+            setTimeout(() => {
+                if (!byId('devices').hidden) scanDevices();
+            },600);
+        }
+    }
+}
+
+function setupResolution(widget,slot) {
+    const select = widget.querySelector('[data-desktop-resolution]');
+    const refresh = widget.querySelector('[data-desktop-rate]');
+    const note = widget.querySelector('[data-resolution-note]');
+    let target, modes = null, current, currentRate, stream, saving = false, expanded = false, retryAfter = 0;
+    const modeKey = mode => mode.w + 'x' + mode.h;
+    const modeLabel = key => key.replace('x',' × ');
+
+    function rankedModes() {
+        if (!modes || !stream?.width || !stream.height) return modes || [];
+        const aspect = stream.width / stream.height, pixels = stream.width * stream.height;
+        const score = mode => 4 * Math.abs(Math.log((mode.w / mode.h) / aspect)) +
+            Math.abs(Math.log(mode.w * mode.h / pixels));
+        return [...modes].sort((a,b) => score(a) - score(b));
+    }
+
+    function renderSelect(input,entries,value,enabled) {
+        const signature = JSON.stringify(entries);
+        if (input.dataset.options !== signature) {
+            input.replaceChildren(...entries.map(([key,label]) => new Option(label,key)));
+            input.dataset.options = signature;
+        }
+        if (!saving && input.value !== value) input.value = value;
+        input.disabled = saving || !target || !enabled;
+    }
+
+    function updateOptions() {
+        const ranked = rankedModes();
+        const recommended = stream?.width && stream?.height && ranked[0];
+        const wide = ranked.find(mode => mode.w === 2200 && mode.h === 1000);
+        const keys = [...new Set([current,wide && modeKey(wide),...(expanded ? modes || [] : ranked.slice(0,4)).map(modeKey)].filter(Boolean))];
+        const choices = keys.length ? keys.map(key => [key,modeLabel(key) + (key === '2200x1000' ? ' · 手机宽屏' : '')]) : [['','—']];
+        if (recommended) choices.unshift(['auto',modeLabel(modeKey(recommended)) + ' · 自动匹配串流']);
+        if (ranked.length > 4) choices.push(['more',expanded ? '只显示常用分辨率' : '更多分辨率…']);
+        renderSelect(select,choices,current,ranked.length > 1);
+        const availableRates = (modes || []).find(mode => modeKey(mode) === current)?.rates || [];
+        const rates = [...new Set([...availableRates,currentRate].filter(Boolean))].sort((a,b) => a-b);
+        renderSelect(refresh,rates.length ? rates.map(rate => [String(rate),rate + ' Hz']) : [['','—']],
+            String(currentRate || ''),availableRates.length > 1);
+    }
+
+    async function apply(mode,rate) {
+        if (!target || saving || !mode) return;
+        const request = target;
+        const [width,height] = mode.split('x');
+        saving = true;
+        updateOptions();
+        showStatus(note,'正在应用显示设置…');
+        try {
+            const parameters = rate ? {...request,width,height,rate} : {...request,width,height};
+            const response = await fetch(endpoint('resolution',parameters),{method:'POST'});
+            if (!response.ok) throw Error('Windows 无法应用此显示模式。');
+            if (target !== request) return;
+            current = mode;
+            if (rate) currentRate = Number(rate);
+            showStatus(note,'');
+        } catch (error) {
+            if (target === request) showStatus(note,error.message);
+        } finally {
+            if (target === request) {
+                saving = false;
+                updateOptions();
+            }
+        }
+    }
+
+    select.onchange = () => {
+        if (select.value === 'more') {
+            expanded = !expanded;
+            updateOptions();
+        } else if (select.value === 'auto') {
+            const best = rankedModes()[0];
+            if (best) apply(modeKey(best));
+        } else {
+            apply(select.value);
+        }
+    };
+    refresh.onchange = () => apply(current,refresh.value);
+
+    return (session,desktop,rate) => {
+        current = desktop?.w && desktop?.h ? desktop.w + 'x' + desktop.h : '';
+        currentRate = rate;
+        stream = session.activeMode;
+        const id = session.available && desktop?.id ? session.deviceId : null;
+        if (id !== (target?.id ?? null) || id && desktop.id !== target.display) {
+            target = id ? {screen:slot,id,display:desktop.id} : null;
+            modes = null;
+            saving = false;
+            expanded = false;
+            retryAfter = 0;
+            showStatus(note,'');
+        }
+        updateOptions();
+        if (!target || modes || Date.now() < retryAfter) return;
+        const request = target;
+        retryAfter = Infinity;
+        fetch(endpoint('resolution',request)).then(response => {
+            if (!response.ok) throw Error();
+            return response.json();
+        }).then(result => {
+            if (target !== request) return;
+            modes = result.modes;
+            updateOptions();
+        }).catch(() => {
+            if (target === request) retryAfter = Date.now() + 5000;
+        });
+    };
+}
+
+function setupDeviceControls(card,slot) {
+    const widget = byId('device-controls-template').content.firstElementChild.cloneNode(true);
+    card.insertBefore(widget,card.querySelector('.touch-setting'));
+    const audio = widget.querySelector('[data-audio]'), camera = widget.querySelector('[data-camera]');
+    const lens = widget.querySelector('[data-lens]');
+    const disconnect = widget.querySelector('[data-disconnect]');
+    const disconnectHint = widget.querySelector('[data-disconnect-hint]');
+    const openPairing = widget.querySelector('[data-open-pairing]');
+    openPairing.onclick = () => {
+        showPairHistory(true,slot);
+        pairedPanel.scrollIntoView({block:'nearest'});
+    };
+    const updateResolution = setupResolution(widget,slot);
+    const desktopSettings = widget.querySelectorAll('[data-desktop-setting]');
+    const fps = widget.querySelector('[data-fps]'), fpsNote = widget.querySelector('[data-fps-note]');
+    const feedback = widget.querySelector('[data-device-feedback]');
+    const preview = widget.querySelector('.preview'), image = preview.querySelector('img');
+    const placeholder = preview.querySelector('span');
+    let savingAudio = null, savingFps = null, fpsError = '', changing = false, frameUrl, message = '', disconnecting = null;
+
+    fps.onchange = async () => {
+        const previous = sessionFor(slot).savedMode, value = Number(fps.value);
+        if (!previous || ![30,60].includes(value)) return;
+        const pending = {value,expires:Date.now()+5000};
+        savingFps = pending;
+        fpsError = '';
+        fps.disabled = true;
+        showStatus(fpsNote,'正在保存串流帧率…');
+        try {
+            const response = await fetch(endpoint('stream',{
+                screen:slot,width:previous.width,height:previous.height,fps:value
+            }),{method:'POST'});
+            if (!response.ok) throw Error();
+        } catch (_) {
+            if (savingFps === pending) savingFps = null;
+            fpsError = '无法保存串流帧率。';
+        }
+    };
+
+    disconnect.onclick = async () => {
+        const session = sessionFor(slot);
+        if (!session.canDisconnect || !session.deviceId || disconnecting) return;
+        const pending = {id:session.deviceId,expires:Date.now()+5000};
+        disconnecting = pending;
+        disconnect.disabled = true;
+        showStatus(feedback,'正在断开连接…');
+        try {
+            const response = await fetch(endpoint('disconnect',{screen:slot,id:pending.id}),{method:'POST'});
+            if (!response.ok) throw Error();
+        } catch (_) {
+            if (disconnecting === pending) {
+                disconnecting = null;
+                message = '无法断开连接，请重试。';
+            }
+        }
+    };
+
+    audio.onchange = async () => {
+        const requested = {value:audio.checked,expires:Date.now()+5000};
+        savingAudio = requested;
+        audio.disabled = true;
+        message = '';
+        try {
+            const response = await fetch(endpoint('audio',{screen:slot,enabled:requested.value}),{method:'POST'});
+            if (!response.ok) throw Error();
+        } catch (_) {
+            if (savingAudio === requested) savingAudio = null;
+            message = '无法保存声音设置。';
+        }
+    };
+
+    async function cameraCommand(command) {
+        if (changing) return;
+        changing = camera.disabled = lens.disabled = true;
+        message = '';
+        try {
+            const response = await fetch(endpoint('camera',{screen:slot,command}),{method:'POST'});
+            if (!response.ok) throw Error();
+        } catch (_) { message = '无法更改摄像头状态。'; }
+        finally { changing = false; }
+    }
+    camera.onchange = () => cameraCommand(camera.checked ? 1 : 0);
+    lens.onclick = () => cameraCommand(2);
+
+    function update(session,desktop,rate) {
+        updateResolution(session,desktop,rate);
+        for (const setting of desktopSettings) setting.hidden = !desktop;
+        const configured = session.savedMode?.fps, actual = session.activeMode?.fps;
+        if (savingFps && (configured === savingFps.value || !session.available || Date.now() >= savingFps.expires)) {
+            if (session.available && configured !== savingFps.value) fpsError = '设备未确认串流帧率，请重试。';
+            savingFps = null;
+        }
+        if (!session.available) fpsError = '';
+        const fpsValue = savingFps?.value || configured || actual;
+        if (fpsValue && ![...fps.options].some(option => option.value === String(fpsValue))) {
+            fps.options[0].value = String(fpsValue);
+            fps.options[0].textContent = fpsValue + ' FPS';
+        }
+        fps.value = fpsValue ? String(fpsValue) : '';
+        fps.disabled = !session.available || !session.savedMode || Boolean(savingFps);
+        const fpsPending = configured && actual && configured !== actual
+            ? '当前 ' + actual + ' FPS，重连后应用 ' + configured + ' FPS。' : '';
+        showStatus(fpsNote,fpsError || (savingFps ? '正在保存串流帧率…' : fpsPending));
+        if (disconnecting && (!session.available || session.deviceId !== disconnecting.id || Date.now() >= disconnecting.expires)) {
+            message = session.available && session.deviceId === disconnecting.id ? '设备尚未断开，请重试。' : '';
+            disconnecting = null;
+        }
+        disconnect.hidden = !session.available;
+        openPairing.hidden = !session.available;
+        disconnect.disabled = Boolean(disconnecting || !session.canDisconnect);
+        showStatus(disconnectHint,session.available && !session.canDisconnect ?
+            ('canDisconnect' in session ? '请将扩展设备更新到 12.5 或更新版本' : '请先安装新版 Windows 控制台') : '');
+        const supported = typeof session.savedAudio === 'boolean';
+        if (savingAudio && (session.savedAudio === savingAudio.value || Date.now() >= savingAudio.expires || !supported)) {
+            if (supported && session.savedAudio !== savingAudio.value) message = '设备未确认声音设置，请重试。';
+            savingAudio = null;
+        }
+        audio.disabled = !supported || Boolean(savingAudio);
+        audio.checked = savingAudio ? savingAudio.value : session.savedAudio === true;
+        camera.disabled = changing || !session.available;
+        if (!changing) camera.checked = session.enabled === true;
+        lens.disabled = changing || !session.enabled || !session.switchable || !session.receiving;
+        lens.hidden = !session.enabled || !session.switchable;
+        const pendingAudio = supported && session.audio !== session.savedAudio
+            ? '声音设置已保存，重连后生效。' : '';
+        showStatus(feedback,disconnecting ? '正在断开连接…' :
+            message || (savingAudio ? '正在保存声音设置…' : pendingAudio));
+        preview.hidden = !(session.enabled || session.receiving || session.denied);
+        placeholder.textContent = session.denied ? '设备未授权摄像头' : '等待设备回传画面';
+    }
+
+    async function refreshFrame(session) {
+        let next;
+        if (session.receiving && !document.hidden && !byId('devices').hidden) {
+            try {
+                const response = await fetch(endpoint('frame',{screen:slot}));
+                if (response.status === 200) next = URL.createObjectURL(await response.blob());
+            } catch (_) {}
+        }
+        image.hidden = !next;
+        placeholder.hidden = Boolean(next);
+        if (next) image.src = next;
+        else image.removeAttribute('src');
+        if (frameUrl) URL.revokeObjectURL(frameUrl);
+        frameUrl = next;
+    }
+    return {update,refreshFrame};
+}
+
+for (const button of document.querySelectorAll('[data-tab]')) {
+    button.onclick = () => {
+        const enteringDevices = button.dataset.tab === 'devices' && byId('devices').hidden;
+        for (const item of document.querySelectorAll('[data-tab]')) {
+            const selected = item === button;
+            item.setAttribute('aria-selected', selected);
+            byId(item.dataset.tab).hidden = !selected;
+        }
+        notice('');
+        draw();
+        if (enteringDevices) scanDevices();
+    };
+}
+if (location.hash === '#devices' || location.hash === '#paired-devices') {
+    document.querySelector('[data-tab="devices"]').click();
+}
+
+trackpad.onchange = async () => {
+    const requested = {enabled:trackpad.checked, deadline:Date.now()+5000};
+    pendingTouch = requested;
+    trackpad.disabled = true;
+    touchMode.textContent = '等待平板确认…';
+    try {
+        const response = await fetch(endpoint('touch', {trackpad:requested.enabled}), {method:'POST'});
+        if (!response.ok) throw new Error();
+    } catch (_) {
+        if (pendingTouch === requested) {
+            pendingTouch = null;
+            notice('无法切换触控模式，请检查平板连接。');
+        }
+    }
+};
+
+function updateTouchMode() {
+    const touchSupported = typeof state.trackpad === 'boolean';
+    if (pendingTouch && (state.trackpad === pendingTouch.enabled ||
+            !touchSupported || Date.now() > pendingTouch.deadline)) {
+        if (state.trackpad !== pendingTouch.enabled) notice('未收到设备确认，请重试。');
+        pendingTouch = null;
+    }
+    trackpad.disabled = !touchSupported || !!pendingTouch;
+    trackpad.checked = pendingTouch ? pendingTouch.enabled : state.trackpad === true;
+    touchMode.textContent = pendingTouch ? '等待设备确认…'
+        : !touchSupported ? (state.available ? '更新扩展端后可切换' : '等待设备连接')
+        : state.trackpad ? '滑动以相对移动指针' : '触点映射到对应的屏幕位置';
+}
+
+async function refresh() {
+    try {
+        const response = await fetch(endpoint('state'));
+        if (!response.ok) throw new Error();
+        const next = await response.json();
+        if (!('layout' in next) && next.main?.w) {
+            const screens = [{...next.main,id:'main',name:'主屏',primary:true,movable:false}];
+            if (next.display && next.extended?.w) screens.push({...next.extended,
+                id:next.display,name:next.device || '扩展屏',primary:false,movable:true});
+            next.layout = {legacy:true,revision:JSON.stringify(screens),screens};
+        }
+        if (state && state.layout?.revision !== next.layout?.revision) {
+            if (positions.size && !layoutBusy) notice('Windows 屏幕配置已变化，请重新排列。');
+            positions.clear();
+            drag = null;
+        } else if (state) {
+            const visible = displayedScreenIds(next);
+            for (const id of positions.keys()) {
+                if (!visible.has(id)) positions.delete(id);
+            }
+            if (drag && !visible.has(drag.id)) drag = null;
+        }
+        state = next;
+        updateTouchMode();
+        for (const control of pairControls) control.poll();
+        updateCards();
+        if (openPairedOnLoad) {
+            openPairedOnLoad = false;
+            showPairHistory(true);
+        }
+        await Promise.all(deviceControls.map((control,index)=>control.refreshFrame(sessionFor(index+1))));
+        draw();
+    } catch (_) {
+        if (state) state.layout = null;
+        positions.clear();
+        drag = null;
+        draw();
+        trackpad.disabled = true;
+        touchMode.textContent = '控制面板连接已断开';
+        for (const control of deviceControls) {
+            control.update({},null,0);
+            control.refreshFrame({});
+        }
+    }
+    setTimeout(refresh, 300);
+}
+
+function layoutScreens() {
+    return (state?.layout?.screens || []).map(screen => ({...screen,...positions.get(screen.id)}));
+}
+
+function displayedScreenIds(snapshot) {
+    const visible = new Set((snapshot?.layout?.screens || [])
+        .filter(screen => screen.primary).map(screen => screen.id));
+    for (const slot of [1,2]) {
+        const session = sessionFor(slot,snapshot);
+        const screen = screenFor(slot,snapshot);
+        if (screen?.movable && (session.available || session.legacy)) visible.add(screen.id);
+    }
+    return visible;
+}
+
+function visibleLayoutScreens() {
+    const visible = displayedScreenIds(state);
+    return layoutScreens().filter(screen => visible.has(screen.id));
+}
+
+function draw() {
+    if (byId('layout').hidden) return;
+    const rects = visibleLayoutScreens();
+    for (const [id,tile] of tiles) {
+        if (!rects.some(screen => screen.id === id && screen.movable === (tile.tagName === 'BUTTON'))) {
+            tile.remove();
+            tiles.delete(id);
+        }
+    }
+    byId('apply').disabled = layoutBusy || Boolean(drag) || !positions.size || !state?.layout;
+    byId('layout-status').hidden = Boolean(rects.length);
+    if (!rects.length) return;
+    if (!drag) {
+        const left = Math.min(...rects.map(rect => rect.x));
+        const top = Math.min(...rects.map(rect => rect.y));
+        const width = Math.max(...rects.map(rect => rect.x + rect.w)) - left;
+        const height = Math.max(...rects.map(rect => rect.y + rect.h)) - top;
+        const scale = Math.min((diagram.clientWidth - 24)/width, (diagram.clientHeight - 24)/height);
+        if (!(scale > 0)) return;
+        transform = {scale,x:(diagram.clientWidth-width*scale)/2-left*scale,
+            y:(diagram.clientHeight-height*scale)/2-top*scale};
+    }
+    for (const screen of rects) {
+        let tile = tiles.get(screen.id);
+        if (!tile) {
+            tile = document.createElement(screen.movable ? 'button' : 'div');
+            if (screen.movable) {
+                tile.type = 'button';
+                tile.dataset.screen = screen.id;
+            }
+            tile.className = 'layout-tile';
+            tile.append(document.createElement('strong'),document.createElement('span'));
+            diagram.append(tile);
+            tiles.set(screen.id,tile);
+        }
+        if (screen.movable) tile.setAttribute('aria-pressed',String(screen.id === selectedScreen));
+        tile.firstElementChild.textContent = readableDeviceName(screen.name);
+        tile.lastElementChild.textContent = screen.w + ' × ' + screen.h;
+        const rect = screen.id === drag?.id ? drag.preview : screen;
+        const {scale,x,y} = transform;
+        tile.style.left = x + rect.x * scale + 'px';
+        tile.style.top = y + rect.y * scale + 'px';
+        tile.style.width = rect.w * scale + 'px';
+        tile.style.height = rect.h * scale + 'px';
+        tile.classList.toggle('compact',rect.w * scale < 100 || rect.h * scale < 56);
+        tile.classList.toggle('dragging',screen.id === drag?.id);
+        tile.classList.toggle('snap-target',screen.id === drag?.target);
+    }
+}
+
+function touches(a,b) {
+    const horizontal = Math.min(a.x+a.w,b.x+b.w) > Math.max(a.x,b.x);
+    const vertical = Math.min(a.y+a.h,b.y+b.h) > Math.max(a.y,b.y);
+    return horizontal && (a.y+a.h === b.y || b.y+b.h === a.y) ||
+        vertical && (a.x+a.w === b.x || b.x+b.w === a.x);
+}
+
+function validLayout(rects) {
+    if (rects.some((a,index) => rects.slice(index+1).some(b =>
+        a.x < b.x+b.w && b.x < a.x+a.w && a.y < b.y+b.h && b.y < a.y+a.h))) return false;
+    const primary = rects.find(rect => rect.primary);
+    if (!primary) return false;
+    const joined = new Set([primary]);
+    for (let previous = 0; previous < joined.size;) {
+        previous = joined.size;
+        for (const rect of rects) {
+            if (rects.some(other => joined.has(other) && touches(rect,other))) joined.add(rect);
+        }
+    }
+    return joined.size === rects.length;
+}
+
+function nearestPosition(rect) {
+    const others = visibleLayoutScreens().filter(screen => screen.id !== rect.id);
+    let best;
+    for (const target of others) {
+        for (const axis of ['x','y']) {
+            const cross = axis === 'x' ? 'y' : 'x';
+            const size = axis === 'x' ? 'w' : 'h';
+            const crossSize = axis === 'x' ? 'h' : 'w';
+            const low = target[cross] - rect[crossSize] + 1;
+            const high = target[cross] + target[crossSize] - 1;
+            const clamp = value => Math.max(low,Math.min(high,Math.round(value)));
+            const offsets = new Set([clamp(rect[cross]),low,high]);
+            // Collision and contact change at these boundaries.
+            for (const other of others) {
+                const first = other[cross] - rect[crossSize], last = other[cross] + other[crossSize];
+                for (const boundary of [first,first+1,last-1,last]) offsets.add(clamp(boundary));
+            }
+            for (const edge of [target[axis]-rect[size],target[axis]+target[size]]) {
+                for (const offset of offsets) {
+                    const next = {...rect,[axis]:edge,[cross]:offset};
+                    const distance = Math.hypot(next.x-rect.x,next.y-rect.y);
+                    if (best && distance >= best.distance) continue;
+                    if (validLayout([...others,next])) best = {...next,distance,target:target.id};
+                }
+            }
+        }
+    }
+    return best;
+}
+
+function stagePosition(rect) {
+    const actual = state.layout.screens.find(screen => screen.id === rect.id);
+    if (rect.x === actual.x && rect.y === actual.y) positions.delete(rect.id);
+    else positions.set(rect.id,{x:rect.x,y:rect.y});
+    notice('');
+    draw();
+}
+
+function pointerRect(event) {
+    return {...drag.start,
+        x:Math.round(drag.start.x+(event.clientX-drag.x)/transform.scale),
+        y:Math.round(drag.start.y+(event.clientY-drag.y)/transform.scale)};
+}
+
+diagram.addEventListener('focusin', event => {
+    const id = event.target.dataset.screen;
+    if (id) { selectedScreen = id; draw(); }
+});
+diagram.onpointerdown = event => {
+    const id = event.target.closest('[data-screen]')?.dataset.screen;
+    if (event.button !== 0 || !id || !transform || layoutBusy || drag) return;
+    const rect = layoutScreens().find(screen => screen.id === id);
+    if (!rect) return;
+    selectedScreen = id;
+    tiles.get(id)?.focus();
+    drag = {id,start:rect,preview:rect,x:event.clientX,y:event.clientY,pointer:event.pointerId};
+    diagram.setPointerCapture(event.pointerId);
+    draw();
+};
+diagram.onpointermove = event => {
+    if (drag?.pointer !== event.pointerId) return;
+    const rect = pointerRect(event), snap = nearestPosition(rect);
+    const close = snap && snap.distance * transform.scale <= 12;
+    drag.preview = close ? snap : rect;
+    drag.target = close ? snap.target : null;
+    draw();
+};
+diagram.onpointerup = event => {
+    if (drag?.pointer !== event.pointerId) return;
+    const moved = Math.hypot(event.clientX-drag.x,event.clientY-drag.y) > 3;
+    const result = moved ? nearestPosition(pointerRect(event)) : null;
+    drag = null;
+    if (result) stagePosition(result);
+    else draw();
+};
+diagram.onpointercancel = diagram.onlostpointercapture = () => {
+    if (drag) { drag = null; draw(); }
+};
+const arrows = {ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]};
+diagram.onkeydown = event => {
+    const direction = arrows[event.key], id = event.target.dataset.screen;
+    if (!direction || !id || drag || layoutBusy) return;
+    const rects = visibleLayoutScreens();
+    const rect = rects.find(screen => screen.id === id);
+    if (!rect) return;
+    event.preventDefault();
+    const next = {...rect,x:rect.x+direction[0]*10,y:rect.y+direction[1]*10};
+    const others = rects.filter(screen => screen.id !== id);
+    if (validLayout([...others,next])) stagePosition(next);
+    else {
+        const snap = nearestPosition(next);
+        if (snap && snap.distance < 10) stagePosition(snap);
+    }
+};
+byId('apply').onclick = async () => {
+    if (!positions.size || !state?.layout || layoutBusy) return;
+    const {revision,legacy} = state.layout;
+    const moves = [...positions].map(([id,point]) => ({id,...point}));
+    layoutBusy = true;
+    draw();
+    try {
+        const response = legacy
+            ? await fetch(endpoint('layout',{device:moves[0].id,x:moves[0].x,y:moves[0].y}), {method:'POST'})
+            : await fetch(endpoint('layout'), {method:'POST',headers:{'Content-Type':'application/json'},
+                body:JSON.stringify({revision,positions:moves})});
+        if (response.status === 409) {
+            positions.clear();
+            throw Error('Windows 屏幕配置已变化，请重新排列。');
+        }
+        if (!response.ok) {
+            const result = await response.json().catch(()=>null);
+            throw Error(result?.error || (state?.canRepositionIdleDisplays
+                ? '无法应用排列，请刷新控制台后重试。'
+                : '当前 Windows 控制台版本较旧，请运行桌面上的新版安装包。'));
+        }
+        const result = await response.json();
+        if (result.result !== 0) throw Error('Windows 未能应用排列，错误码 ' + result.result + '。');
+        if (state.layout?.revision === revision) state.layout.screens = layoutScreens();
+        positions.clear();
+        notice('已应用屏幕排列。');
+    } catch (error) { notice(error.message); }
+    finally { layoutBusy = false; draw(); }
+};
+addEventListener('resize', draw);
+refresh();
+if (!byId('devices').hidden) scanDevices();
+</script>
+</body>
+</html>

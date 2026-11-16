@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<TargetFramework>net8.0-windows</TargetFramework>
+		<Nullable>enable</Nullable>
+		<GenerateAssemblyInfo>false</GenerateAssemblyInfo><UseSystemDrawing>true</UseSystemDrawing><UseWindowsForms>true</UseWindowsForms>
+		<EnableComHosting>true</EnableComHosting>
+		<Platforms>x64;x86;ARM64</Platforms>
+	</PropertyGroup>
+
+	<ItemGroup>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <PackageReference Include="DirectNCore" Version="1.16.0" />
+	</ItemGroup>
+
+</Project>
+
+
