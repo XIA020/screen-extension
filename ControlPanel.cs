@@ -206,7 +206,7 @@ internal sealed class ControlPanel : IDisposable
                         return;
                     }
                     ReplyDeviceAction(response, () => new {
-                        slot = nearby.Connect(discoveredId, IsSlotOccupied, PrepareSlot)
+                        slot = nearby.Connect(discoveredId, IsSlotOccupied, HasControlViewer, PrepareSlot)
                     });
                     return;
                 case "/invite":
@@ -479,8 +479,13 @@ internal sealed class ControlPanel : IDisposable
 
     private bool IsSlotOccupied(int slot)
     {
+        return HasControlViewer(slot) || HasActiveStreamTransport(slot);
+    }
+
+    private bool HasControlViewer(int slot)
+    {
         var state = owner.GetDeviceState(slot);
-        return state.Available || state.Legacy || HasActiveStreamTransport(slot);
+        return state.Available || state.Legacy;
     }
 
     private static bool HasActiveStreamTransport(int slot)

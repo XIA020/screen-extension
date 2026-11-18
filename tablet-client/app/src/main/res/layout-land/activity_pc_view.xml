@@ -17,29 +17,12 @@
         android:layout_toRightOf="@+id/settingsButton"
         android:layout_toEndOf="@+id/settingsButton">
 
-        <RelativeLayout
+        <include
             android:id="@+id/no_pc_found_layout"
+            layout="@layout/pc_connection_waiting"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerVertical="true"
-            android:layout_centerHorizontal="true">
-            <ProgressBar
-                android:id="@+id/pcs_loading"
-                android:layout_width="75dp"
-                android:layout_height="75dp"
-                android:indeterminate="true"/>
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_toRightOf="@+id/pcs_loading"
-                android:layout_toEndOf="@+id/pcs_loading"
-                android:layout_marginLeft="10dp"
-                android:layout_marginStart="10dp"
-                android:layout_centerVertical="true"
-                android:textAppearance="?android:attr/textAppearanceLarge"
-                android:gravity="center"
-                android:text="@string/searching_pc"/>
-        </RelativeLayout>
+            android:layout_centerInParent="true" />
 
     </RelativeLayout>
 
@@ -67,6 +50,7 @@
         android:layout_alignParentLeft="true"
         android:layout_below="@id/settingsButton"
         android:src="@drawable/ic_help"
+        android:contentDescription="@string/tablet_display_connection_guide"
         style="?android:attr/borderlessButtonStyle"/>
 
     <ImageButton

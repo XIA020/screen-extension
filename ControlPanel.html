@@ -50,6 +50,10 @@ p{color:#bbbdc2;margin-bottom:12px}
 #devices{background:none;border:0;padding:8px 0 0}
 .device-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:0 0 16px}
 .device-heading .actions{margin:0}
+.connection-guide{margin:0 0 16px;padding:12px 16px;background:#21242a;border:1px solid #363e49;border-radius:8px}
+.connection-guide summary{cursor:pointer;color:#9bd0fa}
+.connection-guide ul{margin:10px 0 0;padding-left:22px;color:#c1c8d2;line-height:1.65}
+.connection-guide p{margin:8px 0 0;line-height:1.55}
 .device-card{--card-inset:56px;background:#21242a;border:1px solid #363e49;border-radius:12px;padding:20px;margin-top:14px}
 .device-card h2{overflow-wrap:anywhere}
 .device-card .row{display:grid;grid-template-columns:42px minmax(0,1fr) auto;gap:14px;margin-bottom:12px}
@@ -112,6 +116,14 @@ p{color:#bbbdc2;margin-bottom:12px}
 <button id="paired-toggle" type="button" aria-expanded="false" aria-controls="paired-panel">已配对设备</button>
 </div>
 </div>
+<details id="connection-guide" class="connection-guide">
+<summary>首次连接指引</summary>
+<ul>
+<li><strong>无线：</strong>在 Windows「设置 → 网络和 Internet → 移动热点」开启热点，在手机或平板的 Wi-Fi 设置里加入该热点。回到控制台点「扫描网络上的设备」。</li>
+<li><strong>USB：</strong>用数据线连接，在手机或平板的系统设置里开启「USB 共享网络」。回到控制台点「扫描 USB 设备」。如果设备没有这个开关，请使用无线方式。</li>
+</ul>
+<p>让安卓端「屏幕扩展」停在首页。在电脑选择设备并点「连接」，首次请在安卓端确认，再把它显示的配对码输入电脑控制台。</p>
+</details>
 <div class="pair-tools" id="discovered" hidden>
 <p id="scan-status" role="status"></p>
 <ul id="discovered-list" aria-label="网络上的设备"></ul>
@@ -377,6 +389,7 @@ const scanButton = byId('scan-devices'), usbScanButton = byId('scan-usb'), scanP
 const scanStatus = byId('scan-status'), scanList = byId('discovered-list');
 const discovered = new Map();
 let scanning = false, connecting = false, scanTransport = 'network';
+let showInitialGuide = true;
 
 function enableScanning(enabled) {
     scanButton.disabled = usbScanButton.disabled = !enabled;
@@ -461,6 +474,10 @@ async function connectDevice(device) {
 }
 
 function updateCards() {
+    if (showInitialGuide && state) {
+        showInitialGuide = false;
+        byId('connection-guide').open = !state.available && !state.secondary?.available;
+    }
     for (const [index,card] of cards.entries()) {
         const slot = index + 1, session = sessionFor(slot), request = linkRequests.get(slot);
         const screen = screenFor(slot);

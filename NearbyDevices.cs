@@ -230,7 +230,7 @@ internal sealed class NearbyDevices
         return true;
     }
 
-    public int Connect(Guid id, Func<int, bool> occupied, Func<int, Guid> prepare)
+    public int Connect(Guid id, Func<int, bool> occupied, Func<int, bool> viewerAttached, Func<int, Guid> prepare)
     {
         Device device;
         int slot;
@@ -243,7 +243,8 @@ internal sealed class NearbyDevices
             var order = preferred == 2 ? new[] { 2, 1 } : new[] { 1, 2 };
             slot = order.FirstOrDefault(candidate => {
                 Reservation pending;
-                return !occupied(candidate) && (!reservations.TryGetValue(candidate,out pending) ||
+                bool reusable = !occupied(candidate) || candidate == preferred && !viewerAttached(candidate);
+                return reusable && (!reservations.TryGetValue(candidate,out pending) ||
                     pending.Id == id || pending.Expires <= DateTime.UtcNow);
             });
             if (slot == 0) throw new InvalidOperationException("两路扩展屏都在使用中。");
@@ -251,6 +252,12 @@ internal sealed class NearbyDevices
         }
         try
         {
+            // The companion connection can close before Sunshine releases the stream ports.
+            // Retain the device's paired host while that previous stream shuts down.
+            var release = Stopwatch.StartNew();
+            while (occupied(slot) && !viewerAttached(slot) && release.ElapsedMilliseconds < 12000)
+                System.Threading.Thread.Sleep(200);
+            if (occupied(slot)) throw new InvalidOperationException("上一次连接仍在断开，请稍后重试。");
             Guid hostId = prepare(slot);
             lock (discovery) SendInvitation(device, slot, hostId);
             return slot;
@@ -295,30 +302,52 @@ internal sealed class NearbyDevices
         {
             udp.Connect(device.Address, Port);
             udp.Client.ReceiveTimeout = 650;
-            for (int attempt = 0; attempt < 4; attempt++)
+            for (int attempt = 0; attempt < 6; attempt++)
             {
-                try
+                string challenge;
+                if (!ProbeInvitationTarget(udp, probe, nonce, device, true, out challenge))
                 {
-                    byte[] request = Encoding.UTF8.GetBytes(attempt < 2 ? probe + "\nproof" : probe);
-                    udp.Send(request, request.Length);
-                    var peer = new IPEndPoint(IPAddress.Any, 0);
-                    Device confirmed;
-                    string challenge;
-                    if (!TryRead(udp.Receive(ref peer), nonce, peer.Address, out confirmed, out challenge) ||
-                        confirmed.id != device.id) continue;
-                    byte[] packet = challenge == null ? Encoding.UTF8.GetBytes(invitation) : SignedInvitation(invitation, challenge);
-                    udp.Send(packet, packet.Length);
-                    return;
+                    if (attempt < 2 || !ProbeInvitationTarget(udp, probe, nonce, device, false, out challenge)) continue;
+                    // The listener may have become ready only in time to answer the legacy probe.
+                    // Check for a signed invitation again before treating it as an old client.
+                    ProbeInvitationTarget(udp, probe, nonce, device, true, out challenge);
                 }
-                catch (SocketException error)
-                {
-                    if (error.SocketErrorCode != SocketError.TimedOut && error.SocketErrorCode != SocketError.ConnectionReset)
-                        throw;
-                    if (error.SocketErrorCode == SocketError.ConnectionReset) System.Threading.Thread.Sleep(250);
-                }
+                byte[] packet = challenge == null ? Encoding.UTF8.GetBytes(invitation) : SignedInvitation(invitation, challenge);
+                udp.Send(packet, packet.Length);
+                return;
             }
         }
         throw new InvalidOperationException("设备暂时无法接收连接。请让它停在「屏幕扩展」首页后重试。");
+    }
+
+    private static bool ProbeInvitationTarget(UdpClient udp, string probe, Guid nonce, Device device,
+        bool requireProof, out string challenge)
+    {
+        challenge = null;
+        try
+        {
+            byte[] request = Encoding.UTF8.GetBytes(requireProof ? probe + "\nproof" : probe);
+            udp.Send(request, request.Length);
+            var timer = Stopwatch.StartNew();
+            while (timer.ElapsedMilliseconds < 650)
+            {
+                udp.Client.ReceiveTimeout = Math.Max(1, 650 - (int)timer.ElapsedMilliseconds);
+                var peer = new IPEndPoint(IPAddress.Any, 0);
+                Device confirmed;
+                string proof;
+                if (!TryRead(udp.Receive(ref peer), nonce, peer.Address, out confirmed, out proof) ||
+                    confirmed.id != device.id || requireProof && proof == null) continue;
+                challenge = proof;
+                return true;
+            }
+            return false;
+        }
+        catch (SocketException error)
+        {
+            if (error.SocketErrorCode == SocketError.ConnectionReset) System.Threading.Thread.Sleep(250);
+            else if (error.SocketErrorCode != SocketError.TimedOut) throw;
+            return false;
+        }
     }
 
     public void OnConnected(int slot, string deviceId)

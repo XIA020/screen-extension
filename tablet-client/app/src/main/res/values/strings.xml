@@ -56,8 +56,11 @@
     <string name="pair_fail">Pairing failed</string>
     <string name="tablet_display_pairing_pin">请在电脑的「屏幕扩展控制台」中输入配对码 %1$s。</string>
     <string name="tablet_display_desktop_missing">找不到电脑的副屏入口，请检查电脑端安装。</string>
-    <string name="tablet_display_paired_connect_failed">配对成功，但暂时无法打开副屏。请检查热点连接，再点一次这台电脑。</string>
-    <string name="tablet_display_connect_failed">无法打开副屏。请检查电脑端是否已启动，以及设备是否连着电脑热点。</string>
+    <string name="tablet_display_paired_connect_failed">配对成功，但暂时无法打开副屏。请检查电脑热点或 USB 共享网络，再从控制台连接。</string>
+    <string name="tablet_display_connect_failed">无法打开副屏。请确认电脑端已启动，并检查电脑热点或 USB 共享网络。</string>
+    <string name="tablet_display_connection_guide">首次连接指引</string>
+    <string name="tablet_display_waiting_for_connection">请从电脑控制台扫描并连接</string>
+    <string name="tablet_display_connection_steps">无线连接\n在 Windows「设置 → 网络和 Internet → 移动热点」开启热点，在本机的 Wi-Fi 设置里加入这个热点。\n\nUSB 有线连接\n用数据线将本机连到电脑，在本机的系统设置里开启「USB 共享网络」。如果没有这个开关，请使用无线方式。\n\n回到本应用首页，在电脑的「屏幕扩展控制台」扫描网络上的设备或扫描 USB 设备，选中本机并点击「连接」。首次请确认邀请，并将本机显示的配对码输入电脑控制台。</string>
     <string name="pair_already_in_progress">Pairing already in progress</string>
 
     <!-- WOL messages -->

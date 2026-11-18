@@ -164,6 +164,13 @@ if ($PrepareSecondDisplay) {
     exit 10
 }
 
+if ($service -and !$existing -and
+    (Test-Path -LiteralPath (Join-Path $app 'managed.json') -PathType Leaf) -and
+    (Test-Path -LiteralPath (Join-Path $app 'pairing-secret') -PathType Leaf)) {
+    Update-ExistingPanel $app (Join-Path $PSScriptRoot 'app')
+    exit 11
+}
+
 Add-Type -Path (Join-Path $PSScriptRoot 'app\DisplayPaths.cs')
 if ([TabletDisplay.DisplayPaths]::AvailableMttCount() -lt 2) {
     $pipe = [IO.Pipes.NamedPipeClientStream]::new('.','MTTVirtualDisplayPipe',[IO.Pipes.PipeDirection]::Out)
