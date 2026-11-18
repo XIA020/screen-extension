@@ -33,6 +33,19 @@ function Get-HotspotAddress {
     }
 }
 
+function Test-UsbNetwork {
+    foreach ($adapter in [Net.NetworkInformation.NetworkInterface]::GetAllNetworkInterfaces()) {
+        if ($adapter.OperationalStatus -ne 'Up' -or $adapter.NetworkInterfaceType -ne 'Ethernet' -or
+            $adapter.Description -notmatch 'USB|RNDIS|Remote NDIS|CDC NCM') { continue }
+        foreach ($entry in $adapter.GetIPProperties().UnicastAddresses) {
+            if ($entry.Address.AddressFamily -eq 'InterNetwork' -and $entry.Address.ToString() -notlike '169.254.*') {
+                return $true
+            }
+        }
+    }
+    return $false
+}
+
 function Start-MobileHotspot {
     Add-Type -AssemblyName System.Runtime.WindowsRuntime
     $network = [Windows.Networking.Connectivity.NetworkInformation,Windows.Networking.Connectivity,ContentType=WindowsRuntime]
@@ -258,12 +271,19 @@ try {
     Write-Host '[1/3] 检查移动热点'
     $hotspotReady = $true
     try {
-        $address = Start-MobileHotspot
-        Write-Host "      已就绪，电脑地址 $address"
+        if ($Desktop -and !$Invite -and !$Check -and (Test-UsbNetwork)) {
+            $address = Get-HotspotAddress
+            $hotspotReady = [bool]$address
+            if (!$address) { $address = '127.0.0.1' }
+            Write-Host '      已检测到 USB 网络。'
+        } else {
+            $address = Start-MobileHotspot
+            Write-Host "      已就绪，电脑地址 $address"
+        }
     } catch {
-        if (!$managed -or $Check) { throw }
+        if (!$Desktop -or $Invite -or $Check) { throw }
         $hotspotReady = $false
-        Write-Warning "Windows 未能开启移动热点。仍可在本机打开控制面板。$($_.Exception.Message)"
+        Write-Warning "Windows 未能开启移动热点。仍可在控制面板扫描通过 USB 共享网络连接的设备。$($_.Exception.Message)"
         $address = '127.0.0.1'
     }
 
@@ -292,13 +312,6 @@ try {
     if (($Invite -or $Desktop) -and -not $Check) {
         $step = '启动控制面板'
         $preview = Join-Path $PSScriptRoot 'CameraPreview.exe'
-        if ($managed -and $hotspotReady) {
-            $fallback = Get-NetTCPConnection -LocalAddress '127.0.0.1' -LocalPort 47996 -State Listen -ErrorAction SilentlyContinue
-            if ($fallback) {
-                Get-Process -Id $fallback.OwningProcess -ErrorAction SilentlyContinue |
-                    Where-Object Path -eq $preview | Stop-Process
-            }
-        }
         if ((Test-Path -LiteralPath $preview) -and -not (Get-Process -Name CameraPreview -ErrorAction SilentlyContinue)) {
             Start-Process -FilePath $preview -ArgumentList $address, '47996' -WindowStyle Hidden
         }

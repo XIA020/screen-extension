@@ -398,6 +398,10 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
     }
 
     private void doPair(final ComputerDetails computer) {
+        doPair(computer, null);
+    }
+
+    private void doPair(final ComputerDetails computer, String invitationKey) {
         if (pairing || openingDesktop) return;
         if (computer.state == ComputerDetails.State.OFFLINE || computer.activeAddress == null) {
             Toast.makeText(PcView.this, getResources().getString(R.string.pair_pc_offline), Toast.LENGTH_SHORT).show();
@@ -492,7 +496,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
 
                         if (toastSuccess) {
                             startComputerUpdates();
-                            connectDesktop(connection, true);
+                            connectDesktop(connection, true, invitationKey);
                         }
                         else {
                             // Start polling again if we're still in the foreground
@@ -504,7 +508,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
         }).start();
     }
 
-    void acceptDiscoveredHost(String address, int port, String hostId) {
+    void acceptDiscoveredHost(String address, int port, String hostId, String invitationKey) {
         final ComputerManagerService.ComputerManagerBinder binder = managerBinder;
         if (binder == null || !inForeground || pairing || openingDesktop) return;
         openingDesktop = true;
@@ -535,15 +539,26 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
                 if (computer == null) {
                     Toast.makeText(this, R.string.tablet_display_connect_failed, Toast.LENGTH_LONG).show();
                 } else if (computer.pairState == PairState.PAIRED || computer.serverCert != null) {
-                    connectDesktop(computer, false);
+                    connectDesktop(computer, false, invitationKey);
                 } else {
-                    doPair(computer);
+                    doPair(computer, invitationKey);
                 }
             });
         }, "connect-discovered-display").start();
     }
 
     void connectDesktop(ComputerDetails computer, boolean newlyPaired) {
+        connectDesktop(computer, newlyPaired, null);
+    }
+
+    void reconnectDiscoveredHost(ComputerDetails known, String address, int port) {
+        ComputerDetails connection = new ComputerDetails(known);
+        connection.activeAddress = new ComputerDetails.AddressTuple(address, port);
+        connection.state = ComputerDetails.State.ONLINE;
+        connectDesktop(connection, false, null);
+    }
+
+    private void connectDesktop(ComputerDetails computer, boolean newlyPaired, String invitationKey) {
         ComputerManagerService.ComputerManagerBinder binder = managerBinder;
         if (pairing || openingDesktop || binder == null || !inForeground) return;
 
@@ -560,6 +575,7 @@ public class PcView extends Activity implements AdapterFragmentCallbacks {
                     if (desktop == null) {
                         Toast.makeText(this, R.string.tablet_display_desktop_missing, Toast.LENGTH_LONG).show();
                     } else {
+                        displayInvitation.remember(computer, invitationKey);
                         ServerHelper.doStart(this, desktop, computer, binder);
                     }
                 });

@@ -108,6 +108,7 @@ p{color:#bbbdc2;margin-bottom:12px}
 <h2>设备</h2>
 <div class="actions">
 <button id="scan-devices" type="button">扫描网络上的设备</button>
+<button id="scan-usb" type="button">扫描 USB 设备</button>
 <button id="paired-toggle" type="button" aria-expanded="false" aria-controls="paired-panel">已配对设备</button>
 </div>
 </div>
@@ -372,10 +373,14 @@ pairAccess.onsubmit = async event => {
     }
 };
 
-const scanButton = byId('scan-devices'), scanPanel = byId('discovered');
+const scanButton = byId('scan-devices'), usbScanButton = byId('scan-usb'), scanPanel = byId('discovered');
 const scanStatus = byId('scan-status'), scanList = byId('discovered-list');
 const discovered = new Map();
-let scanning = false, connecting = false;
+let scanning = false, connecting = false, scanTransport = 'network';
+
+function enableScanning(enabled) {
+    scanButton.disabled = usbScanButton.disabled = !enabled;
+}
 
 function sessionFor(slot,snapshot = state) {
     return (slot === 1 ? snapshot : snapshot?.secondary) || {};
@@ -396,7 +401,7 @@ function drawDiscovered() {
         const button = document.createElement('button');
         button.type = 'button';
         const pending = requestedIds.has(device.id);
-        button.textContent = pending ? '等待设备确认' : '连接';
+        button.textContent = pending ? '连接中' : '连接';
         button.disabled = connecting || pending;
         button.setAttribute('aria-label','连接 ' + device.name);
         button.onclick = () => connectDevice(device);
@@ -405,13 +410,15 @@ function drawDiscovered() {
     }));
 }
 
-async function scanDevices() {
+async function scanDevices(transport = scanTransport) {
     if (scanning || connecting) return;
-    scanning = scanButton.disabled = true;
+    scanTransport = transport;
+    scanning = true;
+    enableScanning(false);
     scanPanel.hidden = false;
-    showStatus(scanStatus,'正在扫描网络上的设备…');
+    showStatus(scanStatus,transport === 'usb' ? '正在扫描 USB 设备…' : '正在扫描网络上的设备…');
     try {
-        const response = await fetch(endpoint('devices/scan'),{method:'POST'});
+        const response = await fetch(endpoint('devices/scan',{transport}),{method:'POST'});
         if (response.status === 404) throw Error('请先安装新版 Windows 端，再扫描网络上的设备。');
         const result = await response.json();
         if (!response.ok) throw Error(result.error || '暂时无法扫描网络上的设备。');
@@ -425,13 +432,15 @@ async function scanDevices() {
         discovered.clear();
         drawDiscovered();
         showStatus(scanStatus,error.message);
-    } finally { scanning = scanButton.disabled = false; }
+    } finally { scanning = false; enableScanning(true); }
 }
-scanButton.onclick = scanDevices;
+scanButton.onclick = () => scanDevices('network');
+usbScanButton.onclick = () => scanDevices('usb');
 
 async function connectDevice(device) {
     if (connecting || scanning) return;
-    connecting = scanButton.disabled = true;
+    connecting = true;
+    enableScanning(false);
     drawDiscovered();
     showStatus(scanStatus,'正在准备连接…');
     try {
@@ -441,11 +450,12 @@ async function connectDevice(device) {
             throw Error(result.error || '无法连接此设备。');
         linkRequests.set(result.slot,{...device,expires:Date.now()+120000});
         pairControls[result.slot-1].retry();
-        showStatus(scanStatus,'请在「' + device.name + '」上确认连接。');
+        showStatus(scanStatus,'正在连接「' + device.name + '」。如果设备显示确认提示，请在设备上确认。');
         updateCards();
     } catch (error) { showStatus(scanStatus,error.message); }
     finally {
-        connecting = scanButton.disabled = false;
+        connecting = false;
+        enableScanning(true);
         drawDiscovered();
     }
 }

@@ -195,7 +195,8 @@ internal sealed class ControlPanel : IDisposable
             switch (route)
             {
                 case "/devices/scan":
-                    ReplyDeviceAction(response, () => new { devices = nearby.Scan(IPAddress.Parse(owner.LocalAddress)) });
+                    ReplyDeviceAction(response, () => new { devices = nearby.Scan(IPAddress.Parse(owner.LocalAddress),
+                        request.QueryString["transport"] == "usb") });
                     return;
                 case "/devices/connect":
                     Guid discoveredId;
@@ -205,7 +206,7 @@ internal sealed class ControlPanel : IDisposable
                         return;
                     }
                     ReplyDeviceAction(response, () => new {
-                        slot = nearby.Connect(discoveredId, IPAddress.Parse(owner.LocalAddress), IsSlotOccupied, PrepareSlot)
+                        slot = nearby.Connect(discoveredId, IsSlotOccupied, PrepareSlot)
                     });
                     return;
                 case "/invite":

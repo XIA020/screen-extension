@@ -7,6 +7,7 @@ using System.Net;
 using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Security.Cryptography;
 using System.Text;
 using System.Web.Script.Serialization;
 
@@ -47,6 +48,7 @@ internal sealed class NearbyDevices
         public string id { get; set; }
         public string name { get; set; }
         internal IPAddress Address;
+        internal IPAddress LocalAddress;
         internal DateTime LastSeen;
     }
 
@@ -96,9 +98,53 @@ internal sealed class NearbyDevices
         finally { Marshal.FreeHGlobal(buffer); }
     }
 
-    public Device[] Scan(IPAddress localAddress)
+    private static bool IsUsbAdapter(NetworkInterface adapter)
     {
-        lock (discovery) return ScanNetwork(localAddress);
+        string description = adapter.Description;
+        return adapter.OperationalStatus == OperationalStatus.Up && adapter.NetworkInterfaceType == NetworkInterfaceType.Ethernet &&
+            new[] { "USB", "RNDIS", "Remote NDIS", "CDC NCM" }.Any(name =>
+                description.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0);
+    }
+
+    private static IEnumerable<IPAddress> UsbAddresses()
+    {
+        return NetworkInterface.GetAllNetworkInterfaces().Where(IsUsbAdapter)
+            .SelectMany(adapter => adapter.GetIPProperties().UnicastAddresses)
+            .Select(entry => entry.Address).Where(address => address.AddressFamily == AddressFamily.InterNetwork &&
+                !address.ToString().StartsWith("169.254.", StringComparison.Ordinal));
+    }
+
+    public static bool IsUsbAddress(IPAddress address)
+    {
+        return UsbAddresses().Contains(address);
+    }
+
+    public static IPAddress ActiveHotspotAddress()
+    {
+        return NetworkInterface.GetAllNetworkInterfaces().Where(adapter => adapter.OperationalStatus == OperationalStatus.Up &&
+                adapter.Description.IndexOf("Wi-Fi Direct Virtual Adapter", StringComparison.OrdinalIgnoreCase) >= 0)
+            .SelectMany(adapter => adapter.GetIPProperties().UnicastAddresses)
+            .Select(entry => entry.Address).FirstOrDefault(address => address.AddressFamily == AddressFamily.InterNetwork &&
+                !address.ToString().StartsWith("169.254.", StringComparison.Ordinal));
+    }
+
+    public Device[] Scan(IPAddress localAddress, bool usb)
+    {
+        lock (discovery)
+        {
+            if (!usb)
+            {
+                IPAddress wifi = IPAddress.IsLoopback(localAddress) ? ActiveHotspotAddress() : localAddress;
+                if (wifi != null) return ScanNetwork(wifi);
+            }
+            var addresses = UsbAddresses().Distinct().ToArray();
+            if (addresses.Length == 0)
+                throw new InvalidOperationException("未检测到 USB 网络。请用数据线连接，并在安卓设备开启「USB 共享网络」。");
+            var devices = new Dictionary<string, Device>();
+            foreach (var address in addresses)
+                foreach (var device in ScanNetwork(address)) devices[device.id] = device;
+            return devices.Values.OrderBy(device => device.name, StringComparer.CurrentCultureIgnoreCase).ToArray();
+        }
     }
 
     private Device[] ScanNetwork(IPAddress localAddress)
@@ -115,7 +161,9 @@ internal sealed class NearbyDevices
         byte[] network = localAddress.GetAddressBytes(), mask = local.address.IPv4Mask.GetAddressBytes();
         byte[] broadcast = network.Select((value,index) => (byte)(value | ~mask[index])).ToArray();
         int interfaceIndex = local.adapterProperties.GetIPv4Properties().Index;
-        var destinations = new[] { new IPAddress(broadcast) }.Concat(KnownNeighbors(interfaceIndex))
+        var gateways = local.adapterProperties.GatewayAddresses.Select(entry => entry.Address)
+            .Where(address => address.AddressFamily == AddressFamily.InterNetwork && !address.Equals(IPAddress.Any));
+        var destinations = new[] { new IPAddress(broadcast) }.Concat(gateways).Concat(KnownNeighbors(interfaceIndex))
             .Distinct().Take(32).ToArray();
         Guid nonce = Guid.NewGuid();
         var results = new Dictionary<Guid, Device>();
@@ -143,7 +191,11 @@ internal sealed class NearbyDevices
                     if (remote.Port != Port || peer.Length != network.Length || remote.Address.Equals(localAddress) ||
                         peer.Where((value,index) => (value & mask[index]) != (network[index] & mask[index])).Any()) continue;
                     Device item;
-                    if (TryRead(answer, nonce, remote.Address, out item)) results[new Guid(item.id)] = item;
+                    string challenge;
+                    if (TryRead(answer, nonce, remote.Address, out item, out challenge)) {
+                        item.LocalAddress = localAddress;
+                        results[new Guid(item.id)] = item;
+                    }
                 }
             }
         }
@@ -158,24 +210,27 @@ internal sealed class NearbyDevices
         return results.Values.OrderBy(device => device.name, StringComparer.CurrentCultureIgnoreCase).ToArray();
     }
 
-    private static bool TryRead(byte[] response, Guid nonce, IPAddress address, out Device device)
+    private static bool TryRead(byte[] response, Guid nonce, IPAddress address, out Device device, out string challenge)
     {
         device = null;
+        challenge = null;
         if (response.Length > 512) return false;
         string[] parts = Encoding.UTF8.GetString(response).Split('\n');
         Guid receivedNonce, id;
-        if (parts.Length != 5 || parts[0] != Protocol || parts[1] != "found" ||
+        if ((parts.Length != 5 && parts.Length != 6) || parts[0] != Protocol || parts[1] != "found" ||
             !Guid.TryParseExact(parts[2], "D", out receivedNonce) || receivedNonce != nonce ||
             !Guid.TryParseExact(parts[3], "D", out id)) return false;
         string name = parts[4].Trim();
         if (name.Length == 0 || name.Length > 48 || name.Any(char.IsControl)) return false;
+        Guid proof;
+        if (parts.Length == 6 && Guid.TryParseExact(parts[5], "D", out proof)) challenge = proof.ToString("D");
         device = new Device {
             id = id.ToString("D"), name = name, Address = address, LastSeen = DateTime.UtcNow
         };
         return true;
     }
 
-    public int Connect(Guid id, IPAddress localAddress, Func<int, bool> occupied, Func<int, Guid> prepare)
+    public int Connect(Guid id, Func<int, bool> occupied, Func<int, Guid> prepare)
     {
         Device device;
         int slot;
@@ -197,7 +252,7 @@ internal sealed class NearbyDevices
         try
         {
             Guid hostId = prepare(slot);
-            lock (discovery) SendInvitation(device, localAddress, slot, hostId);
+            lock (discovery) SendInvitation(device, slot, hostId);
             return slot;
         }
         catch
@@ -210,15 +265,33 @@ internal sealed class NearbyDevices
         }
     }
 
-    private static void SendInvitation(Device device, IPAddress localAddress, int slot, Guid hostId)
+    private static byte[] SignedInvitation(string invitation, string challenge)
+    {
+        try
+        {
+            var settings = new CspParameters(24) { KeyContainerName = "TabletDisplay.Invitation.v1",
+                Flags = CspProviderFlags.UseNonExportableKey };
+            using (var key = new RSACryptoServiceProvider(2048, settings))
+            {
+                var publicKey = key.ExportParameters(false);
+                string payload = string.Join("\n", invitation, challenge, Convert.ToBase64String(publicKey.Modulus),
+                    Convert.ToBase64String(publicKey.Exponent));
+                var signature = key.SignData(Encoding.UTF8.GetBytes(payload), CryptoConfig.MapNameToOID("SHA256"));
+                return Encoding.UTF8.GetBytes(payload + "\n" + Convert.ToBase64String(signature));
+            }
+        }
+        catch (CryptographicException) { return Encoding.UTF8.GetBytes(invitation); }
+    }
+
+    private static void SendInvitation(Device device, int slot, Guid hostId)
     {
         // The Android listener starts again after each stream, losing prior scan challenges.
         Guid nonce = Guid.NewGuid();
-        byte[] probe = Encoding.UTF8.GetBytes(Protocol + "\nscan\n" + nonce.ToString("D"));
+        string probe = Protocol + "\nscan\n" + nonce.ToString("D");
         int port = slot == 1 ? 47989 : 49989;
-        byte[] invitation = Encoding.UTF8.GetBytes(string.Join("\n", Protocol, "connect",
-            nonce.ToString("D"), device.id, hostId.ToString("D"), port.ToString()));
-        using (var udp = new UdpClient(new IPEndPoint(localAddress, 0)))
+        string invitation = string.Join("\n", Protocol, "connect", nonce.ToString("D"), device.id,
+            hostId.ToString("D"), port.ToString());
+        using (var udp = new UdpClient(new IPEndPoint(device.LocalAddress, 0)))
         {
             udp.Connect(device.Address, Port);
             udp.Client.ReceiveTimeout = 650;
@@ -226,12 +299,15 @@ internal sealed class NearbyDevices
             {
                 try
                 {
-                    udp.Send(probe, probe.Length);
+                    byte[] request = Encoding.UTF8.GetBytes(attempt < 2 ? probe + "\nproof" : probe);
+                    udp.Send(request, request.Length);
                     var peer = new IPEndPoint(IPAddress.Any, 0);
                     Device confirmed;
-                    if (!TryRead(udp.Receive(ref peer), nonce, peer.Address, out confirmed) ||
+                    string challenge;
+                    if (!TryRead(udp.Receive(ref peer), nonce, peer.Address, out confirmed, out challenge) ||
                         confirmed.id != device.id) continue;
-                    udp.Send(invitation, invitation.Length);
+                    byte[] packet = challenge == null ? Encoding.UTF8.GetBytes(invitation) : SignedInvitation(invitation, challenge);
+                    udp.Send(packet, packet.Length);
                     return;
                 }
                 catch (SocketException error)

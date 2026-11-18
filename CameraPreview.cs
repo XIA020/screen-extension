@@ -12,6 +12,7 @@ internal sealed class CameraPreview : Form
 {
     private const string OpenDevicesEvent = @"Local\TabletDisplay.OpenDevices";
     private readonly TcpListener listener;
+    private readonly IPAddress primaryAddress;
     private TcpListener frameListener;
     private byte[] latestJpeg;
     private string requestedName;
@@ -24,7 +25,7 @@ internal sealed class CameraPreview : Form
     private int receiveClients;
     private bool disposed;
     private ControlPanel panel;
-    public string LocalAddress { get { return ((IPEndPoint)listener.LocalEndpoint).Address.ToString(); } }
+    public string LocalAddress { get { return primaryAddress.ToString(); } }
 
     internal sealed class StreamMode
     {
@@ -239,15 +240,13 @@ internal sealed class CameraPreview : Form
 
     private CameraPreview(IPAddress address, int port)
     {
-        listener = new TcpListener(address, port);
+        primaryAddress = address;
+        listener = new TcpListener(IPAddress.Any, port);
         listener.Start();
-        if (!IPAddress.IsLoopback(address))
-        {
-            frameListener = new TcpListener(IPAddress.Loopback, 47997);
-            try { frameListener.Start(); }
-            catch { listener.Stop(); throw; }
-            new Thread(ServeLocalFrames) { IsBackground = true }.Start();
-        }
+        frameListener = new TcpListener(IPAddress.Loopback, 47997);
+        try { frameListener.Start(); }
+        catch { listener.Stop(); throw; }
+        new Thread(ServeLocalFrames) { IsBackground = true }.Start();
         try { panel = new ControlPanel(this); }
         catch {
             listener.Stop();
@@ -328,6 +327,14 @@ internal sealed class CameraPreview : Form
             try { client = listener.AcceptTcpClient(); }
             catch (SocketException) { return; }
             catch (InvalidOperationException) { return; }
+
+            var local = ((IPEndPoint)client.Client.LocalEndPoint).Address;
+            if (!primaryAddress.Equals(local) && !NearbyDevices.IsUsbAddress(local) &&
+                !local.Equals(NearbyDevices.ActiveHotspotAddress()))
+            {
+                client.Close();
+                continue;
+            }
 
             if (Interlocked.Increment(ref receiveClients) <= 8)
                 ThreadPool.QueueUserWorkItem(ignored => ReceiveClient(client));
