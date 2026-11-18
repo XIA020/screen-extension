@@ -482,8 +482,9 @@ function updateCards() {
                 ? '需要独立副屏时，请断开后从本页重新连接。'
                 : '暂时无法确认独立副屏。可从本页断开后重新连接。'
             : '');
-        card.querySelector('[data-device-status]').textContent = session.available ? '已连接' :
-            session.legacy ? '旧版设备' : activeRequest ? '等待设备确认' : '未连接';
+        card.querySelector('[data-device-status]').textContent = session.available
+            ? session.usesUsbNetwork ? 'USB 已连接' : '已连接'
+            : session.legacy ? '旧版设备' : activeRequest ? '连接中' : '未连接';
         const desktop = mode === 'extended' ? screen : null;
         const rate = desktop?.refreshRate || (desktop && slot === 1 ? state?.refreshRate : 0);
         deviceControls[index].update(session,desktop,rate);

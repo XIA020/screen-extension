@@ -42,6 +42,7 @@ internal sealed class CameraPreview : Form
     {
         public TcpClient Client;
         public string Name, Id;
+        public bool UsesUsbNetwork;
         public bool Remote, CanSwitch, Denied, CanDisconnect, CanSelectDisplay;
         public bool? Trackpad, Audio, SavedAudio;
         public StreamMode Active, Saved;
@@ -50,6 +51,7 @@ internal sealed class CameraPreview : Form
     internal sealed class DeviceState
     {
         public bool Available, Legacy, Enabled, Switchable, Receiving, Denied, CanDisconnect, CanSelectDisplay;
+        public bool UsesUsbNetwork;
         public string Name, Id;
         public bool? Trackpad, Audio, SavedAudio;
         public StreamMode Active, Saved;
@@ -65,6 +67,7 @@ internal sealed class CameraPreview : Form
                 Legacy = session != null && !session.Remote,
                 Name = session == null ? null : session.Name,
                 Id = session == null ? null : session.Id,
+                UsesUsbNetwork = session != null && session.UsesUsbNetwork,
                 CanDisconnect = session != null && session.CanDisconnect,
                 CanSelectDisplay = session != null && session.CanSelectDisplay,
                 Enabled = cameraSlot == slot || pendingCameraSlot == slot,
@@ -329,7 +332,8 @@ internal sealed class CameraPreview : Form
             catch (InvalidOperationException) { return; }
 
             var local = ((IPEndPoint)client.Client.LocalEndPoint).Address;
-            if (!primaryAddress.Equals(local) && !NearbyDevices.IsUsbAddress(local) &&
+            bool usesUsbNetwork = NearbyDevices.IsUsbAddress(local);
+            if (!primaryAddress.Equals(local) && !usesUsbNetwork &&
                 !local.Equals(NearbyDevices.ActiveHotspotAddress()))
             {
                 client.Close();
@@ -337,7 +341,7 @@ internal sealed class CameraPreview : Form
             }
 
             if (Interlocked.Increment(ref receiveClients) <= 8)
-                ThreadPool.QueueUserWorkItem(ignored => ReceiveClient(client));
+                ThreadPool.QueueUserWorkItem(ignored => ReceiveClient(client, usesUsbNetwork));
             else
             {
                 Interlocked.Decrement(ref receiveClients);
@@ -346,7 +350,7 @@ internal sealed class CameraPreview : Form
         }
     }
 
-    private void ReceiveClient(TcpClient client)
+    private void ReceiveClient(TcpClient client, bool usesUsbNetwork)
     {
         int slot = 1;
         ControlSession session = null;
@@ -367,7 +371,8 @@ internal sealed class CameraPreview : Form
                     if (!remote && protocol != 0x54444331 && protocol != 0x54444332) return;
 
                     var candidate = new ControlSession { Client = client, Remote = remote,
-                        CanDisconnect = supportsDisconnect, CanSelectDisplay = supportsSelectDisplay };
+                        CanDisconnect = supportsDisconnect, CanSelectDisplay = supportsSelectDisplay,
+                        UsesUsbNetwork = usesUsbNetwork };
                     if (supportsAudio)
                     {
                         slot = reader.ReadByte();

@@ -454,7 +454,7 @@ internal sealed class ControlPanel : IDisposable
     {
         return new Dictionary<string, object> {
             { "available", device.Available }, { "legacy", device.Legacy }, { "device", device.Name },
-            { "deviceId", device.Id }, { "canDisconnect", device.CanDisconnect },
+            { "deviceId", device.Id }, { "canDisconnect", device.CanDisconnect }, { "usesUsbNetwork", device.UsesUsbNetwork },
             { "enabled", device.Enabled }, { "switchable", device.Switchable },
             { "receiving", device.Receiving }, { "denied", device.Denied }, { "trackpad", device.Trackpad },
             { "audio", device.Audio }, { "savedAudio", device.SavedAudio },
