@@ -31,3 +31,9 @@
 - 正常管理安装新增保留配置的覆盖更新路径。已检查 Windows 安装包内容及替换逻辑，真实本机原型升级、安卓同签名覆盖安装通过。全新 Windows 安装仍有验证缺口，隔离 VirtualBox 测试机启动时报 0x80004005，备用 VMware 环境已装旧原型且 Windows 评估授权到期。
 - 修复立即重连时旧串流端口未释放便分配其他副屏的问题，保留设备原配对通道，并在新版监听器刚恢复时再验证签名能力。已模拟迟启的新版与只支持旧协议的设备。MatePad 升级保留配对，连续三轮从电脑立即重连均无需确认，且保留第一副屏位置和通道。最终安装包与校验清单位于 `D:/TabletDisplayTest/Release-0.2.0/verified`。
 - 视频由用户在另一个对话继续，使用 Remotion 动画和实机演示，计划在抖音发布。可复用已验证的热点、USB、免确认重连，以及 MatePad 与 GT6 独立副屏这四点；有线与无线延迟尚无实测对照。
+
+### v0.2.0 发布完成
+
+- 2026 年 11 月 19 日，Windows 台式机完成 GitHub 私有仓库预发布。发布页 https://github.com/XIA020/screen-extension/releases/tag/v0.2.0 ，标签指向 bc77c7cf3d9de0cfbfeb46ec1868d6229cf5ffde。发布附件包含 Windows 安装包、安卓 12.8 APK、项目源码与 SHA-256 清单，四项均与本地核对一致。
+- 最新桌面安装包位于「屏幕扩展」文件夹。候选原件位于 D:/TabletDisplayTest/Release-0.2.0/verified。MatePad 已实际测试横竖屏教程及连续三轮免确认重连，GT6 有线串流和 MatePad 无线串流曾同时通过。全新 Windows 双路安装仍待实机验证。
+- 视频工作由用户在另一个对话使用 Remotion 继续，可引用该预发布版本和上述真机测试结果。
